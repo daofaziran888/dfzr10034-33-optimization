@@ -27,6 +27,7 @@ class Store:
         self._change_log: list[dict[str, Any]] = []
         self._snapshots: dict[str, list[dict[str, Any]]] = {}
         self._pipeline_state: dict[str, dict[str, Any]] = {}
+        self._rollbacks: list[dict[str, Any]] = []
 
     def reset(self) -> None:
         """清空所有数据并重新种子化（测试用）。"""
@@ -219,6 +220,26 @@ class Store:
             self.rows("diff_report").append(report)
 
         return diffs
+
+    # ── 回滚台账 ──────────────────────────────────────────────
+
+    def record_rollback(self, record: dict[str, Any]) -> dict[str, Any]:
+        """登记一次资产版本回滚（幂等键：目标资产 + 版本标签）。"""
+        self._rollbacks.append(record)
+        return record
+
+    def find_rollback(self, asset: str, version_tag: str) -> dict[str, Any] | None:
+        """按资产与版本标签查找已生效的回滚记录。"""
+        for record in self._rollbacks:
+            if record.get("目标资产") == asset and record.get("版本标签") == version_tag:
+                return record
+        return None
+
+    def rollbacks(self, asset: str | None = None) -> list[dict[str, Any]]:
+        """列出回滚记录，可按资产过滤。"""
+        if asset is None:
+            return list(self._rollbacks)
+        return [r for r in self._rollbacks if r.get("目标资产") == asset]
 
     # ── 跨模块操作 ────────────────────────────────────────────
 
